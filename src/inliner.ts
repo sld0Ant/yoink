@@ -8,10 +8,14 @@ export async function inlineScripts(html: string, baseDir: string): Promise<stri
     const [fullTag, attrsBefore, src, attrsAfter] = m;
     if (src.startsWith("http://") || src.startsWith("https://") || src.startsWith("//")) continue;
 
+    const allAttrs = attrsBefore + attrsAfter;
+    if (/\basync\b/i.test(allAttrs)) continue;
+
     const filePath = join(baseDir, src);
     try {
-      const content = await Bun.file(filePath).text();
-      const attrs = (attrsBefore + attrsAfter).replace(/\s*defer\s*/gi, " ").replace(/\s*async\s*/gi, " ").trim();
+      const raw = await Bun.file(filePath).text();
+      const content = raw.replaceAll("</script>", "<\\/script>");
+      const attrs = allAttrs.replace(/\s*defer\s*/gi, " ").trim();
       const attrStr = attrs ? ` ${attrs}` : "";
       result = result.replace(fullTag, `<script${attrStr}>${content}</script>`);
     } catch {
@@ -35,7 +39,8 @@ export async function inlineStyles(html: string, baseDir: string): Promise<strin
 
       const filePath = join(baseDir, src);
       try {
-        const content = await Bun.file(filePath).text();
+        const raw = await Bun.file(filePath).text();
+        const content = raw.replaceAll("</style>", "<\\/style>");
         result = result.replace(fullTag, `<style>${content}</style>`);
       } catch {
         // file missing — leave tag as-is

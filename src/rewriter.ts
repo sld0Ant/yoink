@@ -18,30 +18,57 @@ function replaceAll(str: string, search: string, replacement: string): string {
   return str.split(search).join(replacement);
 }
 
+function splitSafeZones(html: string): { text: string; isScript: boolean }[] {
+  const parts: { text: string; isScript: boolean }[] = [];
+  const re = /<script[\s>][\s\S]*?<\/script>/gi;
+  let last = 0;
+
+  for (const m of html.matchAll(re)) {
+    const start = m.index!;
+    if (start > last) parts.push({ text: html.slice(last, start), isScript: false });
+
+    const tag = m[0];
+    const hasSrc = /\ssrc\s*=/i.test(tag.slice(0, tag.indexOf(">")));
+    parts.push({ text: tag, isScript: !hasSrc });
+
+    last = start + tag.length;
+  }
+
+  if (last < html.length) parts.push({ text: html.slice(last), isScript: false });
+  return parts;
+}
+
 export function rewriteHtml(
   html: string,
   origin: string,
   assetMap: Map<string, string>,
   depth: number
 ): string {
-  let result = html;
   const prefix = "../".repeat(depth);
   const sorted = [...assetMap.entries()].sort((a, b) => b[0].length - a[0].length);
 
-  for (const [origUrl, localRel] of sorted) {
-    const to = prefix + localRel;
-    result = replaceAll(result, origUrl, to);
+  const zones = splitSafeZones(html);
 
-    try {
-      const u = new URL(origUrl);
-      if (u.search) result = replaceInContext(result, u.pathname + u.search, to);
-      result = replaceInContext(result, u.pathname, to);
-    } catch {
-      // skip
+  for (const zone of zones) {
+    if (zone.isScript) continue;
+
+    let result = zone.text;
+    for (const [origUrl, localRel] of sorted) {
+      const to = prefix + localRel;
+      result = replaceAll(result, origUrl, to);
+
+      try {
+        const u = new URL(origUrl);
+        if (u.search) result = replaceInContext(result, u.pathname + u.search, to);
+        result = replaceInContext(result, u.pathname, to);
+      } catch {
+        // skip
+      }
     }
+    zone.text = result;
   }
 
-  return result;
+  return zones.map((z) => z.text).join("");
 }
 
 export function rewriteCss(
