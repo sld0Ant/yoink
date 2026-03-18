@@ -21,3 +21,12 @@ export interface CloneOpts {
 }
 
 export type AssetType = "css" | "js" | "img" | "font" | "icon" | "page";
+
+export interface ProgressReporter {
+  start(): void;
+  stop(): void;
+  setPhase(name: string): void;
+  tick(type: AssetType, file: string, bytes?: number): void;
+  tickFail(): void;
+  addTotal(n: number): void;
+}

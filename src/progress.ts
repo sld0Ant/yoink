@@ -1,9 +1,18 @@
 import { ANSI } from "./constants";
-import type { AssetType } from "./types";
+import type { AssetType, ProgressReporter } from "./types";
 
 const { gray, green, yellow, cyan, red, bold, reset, hideCursor, showCursor, clearLine, up } = ANSI;
 
-export class Progress {
+export class SilentProgress implements ProgressReporter {
+  start() {}
+  stop() {}
+  setPhase() {}
+  tick() {}
+  tickFail() {}
+  addTotal() {}
+}
+
+export class Progress implements ProgressReporter {
   phase = "";
   currentFile = "";
   total = 0;
