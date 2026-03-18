@@ -1,7 +1,9 @@
-import { join, dirname } from "node:path";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { DownloadRecord } from "./types";
 
-const TEMPLATE_PATH = join(dirname(import.meta.dir), "templates", "server.ts");
+const THIS_DIR = join(fileURLToPath(import.meta.url), "..");
+const TEMPLATE_PATH = join(THIS_DIR, "..", "templates", "server.ts");
 
 export async function writeServer(outDir: string) {
   const template = await Bun.file(TEMPLATE_PATH).text();

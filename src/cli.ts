@@ -1,7 +1,7 @@
 import type { CloneOpts } from "./types";
 
-export function parseArgs() {
-  const args = Bun.argv.slice(2);
+export function parseArgs(argv: string[] = Bun.argv) {
+  const args = argv.slice(2);
   const opts: CloneOpts = {};
   const positional: string[] = [];
   const headers: Record<string, string> = {};

@@ -1,5 +1,18 @@
 import { relative, dirname } from "node:path";
 
+function replaceInContext(str: string, search: string, replacement: string): string {
+  if (!search || !str.includes(search)) return str;
+
+  const prefixes = ['"', "'", "(", "="];
+  let result = str;
+
+  for (const p of prefixes) {
+    result = result.split(p + search).join(p + replacement);
+  }
+
+  return result;
+}
+
 function replaceAll(str: string, search: string, replacement: string): string {
   if (!search || !str.includes(search)) return str;
   return str.split(search).join(replacement);
@@ -21,10 +34,8 @@ export function rewriteHtml(
 
     try {
       const u = new URL(origUrl);
-      result = replaceAll(result, u.pathname + u.search, to);
-      if (u.origin === origin) {
-        result = replaceAll(result, u.pathname, to);
-      }
+      if (u.search) result = replaceInContext(result, u.pathname + u.search, to);
+      result = replaceInContext(result, u.pathname, to);
     } catch {
       // skip
     }
@@ -49,16 +60,16 @@ export function rewriteCss(
 
     try {
       const u = new URL(origUrl);
-      if (u.search) result = replaceAll(result, u.pathname + u.search, relPath);
-      result = replaceAll(result, u.pathname, relPath);
+      if (u.search) result = replaceInContext(result, u.pathname + u.search, relPath);
+      result = replaceInContext(result, u.pathname, relPath);
 
       if (cssOrigUrl) {
         const resolved = new URL(origUrl, cssOrigUrl).href;
         if (resolved !== origUrl) {
-          const ru = new URL(resolved);
-          if (ru.search) result = replaceAll(result, ru.pathname + ru.search, relPath);
-          result = replaceAll(result, ru.pathname, relPath);
           result = replaceAll(result, resolved, relPath);
+          const ru = new URL(resolved);
+          if (ru.search) result = replaceInContext(result, ru.pathname + ru.search, relPath);
+          result = replaceInContext(result, ru.pathname, relPath);
         }
       }
     } catch {

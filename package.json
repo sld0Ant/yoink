@@ -1,11 +1,10 @@
 {
   "name": "yoink-site",
   "version": "0.1.0",
-  "description": "Clone any website with all assets for local offline use",
-  "type": "module",
   "bin": {
     "yoink": "./index.ts"
   },
+  "description": "Clone any website with all assets for local offline use",
   "files": [
     "clone.ts",
     "README.md",
@@ -21,5 +20,6 @@
     "agent-skills",
     "claude-skills"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "type": "module"
 }
