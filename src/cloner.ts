@@ -1,6 +1,6 @@
 import { mkdirSync, readdirSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
-import { ANSI, CDN_PATTERNS } from "./constants";
+import { ANSI, CDN_HOSTNAMES } from "./constants";
 import { extractHtmlAssets, extractCssAssets, extractInternalLinks } from "./extractor";
 import { Fetcher } from "./fetcher";
 import { Namer } from "./namer";
@@ -56,8 +56,7 @@ export class Cloner {
     const homeHtml = await this.fetcher.text(this.target.href);
     if (!homeHtml) {
       this.progress.stop();
-      console.error(`\n  ${red}Failed to fetch homepage${reset}`);
-      process.exit(1);
+      throw new Error(`Failed to fetch homepage: ${this.target.href}`);
     }
 
     this.progress.setPhase("Downloading assets");
@@ -248,7 +247,10 @@ export class Cloner {
     if (tasks.length === 0) return;
     let idx = 0;
     const worker = async () => {
-      while (idx < tasks.length) await tasks[idx++]();
+      while (idx < tasks.length) {
+        const i = idx++;
+        await tasks[i]();
+      }
     };
     await Promise.all(Array.from({ length: Math.min(this.concurrency, tasks.length) }, () => worker()));
   }
@@ -266,7 +268,7 @@ export class Cloner {
 function isCdn(url: string, targetHost: string): boolean {
   try {
     const h = new URL(url).hostname;
-    return h !== targetHost && CDN_PATTERNS.some((p) => url.includes(p));
+    return h !== targetHost && CDN_HOSTNAMES.has(h);
   } catch {
     return false;
   }

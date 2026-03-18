@@ -4,4 +4,9 @@ import { parseArgs } from "./src/cli";
 import { Cloner } from "./src/cloner";
 
 const { url, dir, opts } = parseArgs();
-await new Cloner(url, dir, opts).run();
+try {
+  await new Cloner(url, dir, opts).run();
+} catch (e) {
+  console.error(`\n  \x1b[31m${e instanceof Error ? e.message : e}\x1b[0m\n`);
+  process.exit(1);
+}

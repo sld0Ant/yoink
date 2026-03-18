@@ -1,18 +1,19 @@
 export const USER_AGENT =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
-export const CDN_PATTERNS = [
-  "cdn.",
+export const CDN_HOSTNAMES = new Set([
   "cdnjs.cloudflare.com",
-  "jsdelivr.net",
+  "cdn.jsdelivr.net",
   "unpkg.com",
-  "bootstrapcdn.com",
-  "fontawesome.com",
+  "maxcdn.bootstrapcdn.com",
+  "use.fontawesome.com",
+  "ka-f.fontawesome.com",
   "fonts.googleapis.com",
   "fonts.gstatic.com",
   "ajax.googleapis.com",
   "code.jquery.com",
-];
+  "cdn.cloudflare.com",
+]);
 
 export const ANSI = {
   gray: "\x1b[90m",
