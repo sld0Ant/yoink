@@ -1,0 +1,25 @@
+{
+  "name": "yoink-site",
+  "version": "0.1.0",
+  "description": "Clone any website with all assets for local offline use",
+  "type": "module",
+  "bin": {
+    "yoink": "./clone.ts"
+  },
+  "files": [
+    "clone.ts",
+    "README.md",
+    "SKILL.md",
+    "references/"
+  ],
+  "keywords": [
+    "website-cloner",
+    "scraper",
+    "offline",
+    "mirror",
+    "bun",
+    "agent-skills",
+    "claude-skills"
+  ],
+  "license": "MIT"
+}
