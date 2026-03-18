@@ -9,6 +9,15 @@ export class Namer {
     this.outDir = outDir;
   }
 
+  seed(existingPaths: string[]) {
+    for (const p of existingPaths) {
+      const dir = p.slice(0, p.lastIndexOf("/"));
+      const name = p.slice(p.lastIndexOf("/") + 1);
+      const key = `${dir}/${name}`;
+      this.counters.set(key, (this.counters.get(key) ?? 0) + 1);
+    }
+  }
+
   alloc(url: string, dir: string): string {
     let name: string;
     try {

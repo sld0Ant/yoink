@@ -21,6 +21,9 @@ export interface CloneOpts {
   headers?: Record<string, string>;
   retries?: number;
   retryDelay?: number;
+  resume?: boolean;
+  inlineScripts?: boolean;
+  inlineStyles?: boolean;
 }
 
 export type AssetType = "css" | "js" | "img" | "font" | "icon" | "page";

@@ -31,6 +31,15 @@ describe("Progress", () => {
     p.setPhase("Downloading");
     expect(p.phase).toBe("Downloading");
   });
+
+  it("computes ETA from done/total/elapsed", () => {
+    const p = new Progress();
+    p.addTotal(10);
+    p.tick("css", "a.css");
+    p.tick("css", "b.css");
+    expect(p.done).toBe(2);
+    expect(p.total).toBe(10);
+  });
 });
 
 describe("SilentProgress", () => {

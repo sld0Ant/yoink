@@ -43,4 +43,16 @@ describe("parseArgs", () => {
   it("parses multiple headers", () => {
     expect(parse("https://example.com", "-H", "X-A: 1", "-H", "X-B: 2").opts.headers).toEqual({ "X-A": "1", "X-B": "2" });
   });
+
+  it("parses --resume", () => {
+    expect(parse("https://example.com", "--resume").opts.resume).toBe(true);
+  });
+
+  it("parses --inline-scripts", () => {
+    expect(parse("https://example.com", "--inline-scripts").opts.inlineScripts).toBe(true);
+  });
+
+  it("parses --inline-styles", () => {
+    expect(parse("https://example.com", "--inline-styles").opts.inlineStyles).toBe(true);
+  });
 });

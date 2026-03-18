@@ -65,11 +65,32 @@ export function extractHtmlAssets(html: string, baseUrl: string): Assets {
   for (const m of html.matchAll(/<link[^>]*href=["']([^"']+)["'][^>]*rel=["'][^"']*(?:icon|apple-touch-icon|shortcut)[^"']*["'][^>]*>/gi))
     a.icons.push(abs(m[1], baseUrl));
 
+  for (const m of html.matchAll(/<link[^>]*rel=["']manifest["'][^>]*href=["']([^"']+)["'][^>]*>/gi))
+    a.js.push(abs(m[1], baseUrl));
+  for (const m of html.matchAll(/<link[^>]*href=["']([^"']+)["'][^>]*rel=["']manifest["'][^>]*>/gi))
+    a.js.push(abs(m[1], baseUrl));
+
+  for (const m of html.matchAll(/<link[^>]*rel=["']preload["'][^>]*href=["']([^"']+)["'][^>]*as=["'](?:font)["'][^>]*>/gi))
+    a.fonts.push(abs(m[1], baseUrl));
+  for (const m of html.matchAll(/<link[^>]*rel=["']preload["'][^>]*href=["']([^"']+)["'][^>]*as=["'](?:image)["'][^>]*>/gi))
+    a.images.push(abs(m[1], baseUrl));
+  for (const m of html.matchAll(/<link[^>]*rel=["']preload["'][^>]*href=["']([^"']+)["'][^>]*as=["'](?:style)["'][^>]*>/gi))
+    a.css.push(abs(m[1], baseUrl));
+  for (const m of html.matchAll(/<link[^>]*rel=["']preload["'][^>]*href=["']([^"']+)["'][^>]*as=["'](?:script)["'][^>]*>/gi))
+    a.js.push(abs(m[1], baseUrl));
+
   for (const m of html.matchAll(/<script[^>]*src=["']([^"']+)["'][^>]*>/gi))
     a.js.push(abs(m[1], baseUrl));
 
   for (const m of html.matchAll(/<img[^>]*src=["']([^"']+)["'][^>]*>/gi))
     if (!m[1].startsWith("data:")) a.images.push(abs(m[1], baseUrl));
+
+  for (const m of html.matchAll(/<video[^>]*src=["']([^"']+)["'][^>]*>/gi))
+    a.images.push(abs(m[1], baseUrl));
+  for (const m of html.matchAll(/<video[^>]*poster=["']([^"']+)["'][^>]*>/gi))
+    a.images.push(abs(m[1], baseUrl));
+  for (const m of html.matchAll(/<audio[^>]*src=["']([^"']+)["'][^>]*>/gi))
+    a.images.push(abs(m[1], baseUrl));
 
   for (const m of html.matchAll(/srcset=["']([^"']+)["']/gi))
     a.images.push(...parseSrcset(m[1], baseUrl));

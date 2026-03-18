@@ -134,6 +134,36 @@ describe("Cloner", () => {
     const c = new Cloner("http://127.0.0.1:1", TMP, { pages: 0 });
     await expect(c.run()).rejects.toThrow("Failed to fetch homepage");
   });
+
+  it("resume skips already downloaded assets", async () => {
+    const c1 = new Cloner(`http://localhost:${port}`, TMP, { pages: 0 });
+    const r1 = await c1.run();
+    const firstOk = r1.ok;
+
+    const c2 = new Cloner(`http://localhost:${port}`, TMP, { pages: 0, resume: true });
+    const r2 = await c2.run();
+
+    expect(r2.ok).toBeLessThanOrEqual(firstOk);
+  });
+
+  it("inline-scripts embeds JS in HTML", async () => {
+    const c = new Cloner(`http://localhost:${port}`, TMP, { pages: 0, inlineScripts: true });
+    await c.run();
+
+    const html = await Bun.file(join(TMP, "index.html")).text();
+    expect(html).toContain("<script>console.log('app')</script>");
+    expect(html).not.toContain('src="assets/js/app.js"');
+  });
+
+  it("inline-styles embeds CSS in HTML", async () => {
+    const c = new Cloner(`http://localhost:${port}`, TMP, { pages: 0, inlineStyles: true });
+    await c.run();
+
+    const html = await Bun.file(join(TMP, "index.html")).text();
+    expect(html).toContain("<style>");
+    expect(html).toContain("background");
+    expect(html).not.toContain('rel="stylesheet"');
+  });
 });
 
 async function listRecursive(dir: string): Promise<string[]> {

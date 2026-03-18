@@ -1,9 +1,11 @@
 import { mkdirSync, readdirSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
+import { existsSync } from "node:fs";
 import { ANSI } from "./constants";
 import { Downloader } from "./downloader";
 import { extractHtmlAssets, extractInternalLinks } from "./extractor";
 import { Fetcher } from "./fetcher";
+import { inlineScripts, inlineStyles } from "./inliner";
 import { Namer } from "./namer";
 import { writeServer, writeManifest } from "./output";
 import { Progress } from "./progress";
@@ -24,6 +26,9 @@ export class Cloner {
   private origin: string;
   private outDir: string;
   private maxPages: number;
+  private resume: boolean;
+  private doInlineScripts: boolean;
+  private doInlineStyles: boolean;
 
   private fetcher: Fetcher;
   private namer: Namer;
@@ -35,6 +40,9 @@ export class Cloner {
     this.origin = this.target.origin;
     this.outDir = resolve(outDir);
     this.maxPages = opts.pages ?? 20;
+    this.resume = opts.resume ?? false;
+    this.doInlineScripts = opts.inlineScripts ?? false;
+    this.doInlineStyles = opts.inlineStyles ?? false;
 
     const extraHeaders: Record<string, string> = { ...opts.headers };
     if (opts.cookie) extraHeaders["Cookie"] = opts.cookie;
@@ -67,6 +75,7 @@ export class Cloner {
 
     this.progress.start();
     this.createDirs();
+    this.loadResume();
 
     this.progress.setPhase("Fetching homepage");
     const homeHtml = await this.fetcher.text(this.target.href);
@@ -95,6 +104,25 @@ export class Cloner {
     this.printSummary(elapsed, ok, failed);
 
     return { ok, failed, elapsed, records: this.dl.records };
+  }
+
+  private loadResume() {
+    if (!this.resume) return;
+    const manifestPath = join(this.outDir, "manifest.json");
+    if (!existsSync(manifestPath)) return;
+
+    try {
+      const raw = require("node:fs").readFileSync(manifestPath, "utf8");
+      const records = JSON.parse(raw);
+      this.dl.seedFromManifest(records);
+      this.namer.seed(
+        Object.values(records)
+          .filter((r: any) => r.status === "ok")
+          .map((r: any) => r.local)
+      );
+    } catch {
+      // corrupted manifest — proceed without resume
+    }
   }
 
   private createDirs() {
@@ -130,14 +158,16 @@ export class Cloner {
   private async rewriteAll(homeHtml: string) {
     const { assetMap } = this.dl;
 
-    const rewrittenHome = rewriteHtml(homeHtml, this.origin, assetMap, 0);
+    let rewrittenHome = rewriteHtml(homeHtml, this.origin, assetMap, 0);
+    rewrittenHome = await this.applyInline(rewrittenHome, 0);
     await Bun.write(join(this.outDir, "index.html"), rewrittenHome);
 
     const pagesDir = join(this.outDir, "pages");
     for (const file of listDir(pagesDir)) {
       if (!file.endsWith(".html")) continue;
       const raw = await Bun.file(join(pagesDir, file)).text();
-      const rewritten = rewriteHtml(raw, this.origin, assetMap, 1);
+      let rewritten = rewriteHtml(raw, this.origin, assetMap, 1);
+      rewritten = await this.applyInline(rewritten, 1);
       await Bun.write(join(pagesDir, file), rewritten);
     }
 
@@ -148,6 +178,13 @@ export class Cloner {
       const rewritten = rewriteCss(raw, file, origUrl, assetMap);
       await Bun.write(join(cssDir, file), rewritten);
     }
+  }
+
+  private async applyInline(html: string, _depth: number): Promise<string> {
+    let result = html;
+    if (this.doInlineScripts) result = await inlineScripts(result, this.outDir);
+    if (this.doInlineStyles) result = await inlineStyles(result, this.outDir);
+    return result;
   }
 
   private printSummary(elapsed: number, ok: number, failed: number) {

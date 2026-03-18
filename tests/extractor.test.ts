@@ -96,6 +96,54 @@ describe("extractHtmlAssets", () => {
     const assets = extractHtmlAssets(html, base);
     expect(assets.images.filter((u) => u === "https://example.com/a.jpg")).toHaveLength(1);
   });
+
+  it("extracts link rel=manifest", () => {
+    const html = `<link rel="manifest" href="/manifest.json">`;
+    const assets = extractHtmlAssets(html, base);
+    expect(assets.js).toContain("https://example.com/manifest.json");
+  });
+
+  it("extracts link rel=preload as=font", () => {
+    const html = `<link rel="preload" href="/font.woff2" as="font">`;
+    const assets = extractHtmlAssets(html, base);
+    expect(assets.fonts).toContain("https://example.com/font.woff2");
+  });
+
+  it("extracts link rel=preload as=image", () => {
+    const html = `<link rel="preload" href="/hero.avif" as="image">`;
+    const assets = extractHtmlAssets(html, base);
+    expect(assets.images).toContain("https://example.com/hero.avif");
+  });
+
+  it("extracts link rel=preload as=style", () => {
+    const html = `<link rel="preload" href="/critical.css" as="style">`;
+    const assets = extractHtmlAssets(html, base);
+    expect(assets.css).toContain("https://example.com/critical.css");
+  });
+
+  it("extracts link rel=preload as=script", () => {
+    const html = `<link rel="preload" href="/chunk.js" as="script">`;
+    const assets = extractHtmlAssets(html, base);
+    expect(assets.js).toContain("https://example.com/chunk.js");
+  });
+
+  it("extracts video src", () => {
+    const html = `<video src="/clip.mp4"></video>`;
+    const assets = extractHtmlAssets(html, base);
+    expect(assets.images).toContain("https://example.com/clip.mp4");
+  });
+
+  it("extracts video poster", () => {
+    const html = `<video poster="/thumb.jpg"></video>`;
+    const assets = extractHtmlAssets(html, base);
+    expect(assets.images).toContain("https://example.com/thumb.jpg");
+  });
+
+  it("extracts audio src", () => {
+    const html = `<audio src="/song.mp3"></audio>`;
+    const assets = extractHtmlAssets(html, base);
+    expect(assets.images).toContain("https://example.com/song.mp3");
+  });
 });
 
 describe("extractCssAssets", () => {

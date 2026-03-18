@@ -24,6 +24,15 @@ export class Downloader {
     private errors: Map<string, string> = new Map(),
   ) {}
 
+  seedFromManifest(records: Record<string, { local: string; status: string }>) {
+    for (const [url, rec] of Object.entries(records)) {
+      if (rec.status !== "ok") continue;
+      this.downloaded.set(url, { local: rec.local, status: "ok" });
+      this.assetMap.set(url, rec.local);
+      this.localToUrl.set(rec.local, url);
+    }
+  }
+
   get records() {
     return this.downloaded;
   }
@@ -62,7 +71,7 @@ export class Downloader {
     }
 
     for (const url of assets.icons) {
-      if (this.downloaded.has(url)) continue;
+      if (this.shouldSkip(url)) continue;
       tasks.push({ type: "icon", url, rel: this.namer.alloc(url, "assets/images") });
     }
 

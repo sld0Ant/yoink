@@ -20,6 +20,15 @@ export function parseArgs(argv: string[] = Bun.argv) {
       case "--concurrency":
         opts.concurrency = parseInt(args[++i], 10);
         break;
+      case "--resume":
+        opts.resume = true;
+        break;
+      case "--inline-scripts":
+        opts.inlineScripts = true;
+        break;
+      case "--inline-styles":
+        opts.inlineStyles = true;
+        break;
       case "--cookie":
       case "-b":
         opts.cookie = args[++i];
@@ -43,6 +52,9 @@ export function parseArgs(argv: string[] = Bun.argv) {
             "  --images <n>       Max images (default: 200, 0 = unlimited)",
             "  --no-cdn           Skip third-party CDN assets",
             "  --concurrency <n>  Parallel downloads (default: 8)",
+            "  --resume           Skip already downloaded assets (reads manifest.json)",
+            "  --inline-scripts   Embed <script src> content directly in HTML",
+            "  --inline-styles    Embed <link rel=stylesheet> content directly in HTML",
             "  --cookie, -b <s>   Cookie header (e.g. 'device=desktop')",
             "  --header, -H <s>   Extra header (e.g. 'Accept-Language: ru')",
             "",
