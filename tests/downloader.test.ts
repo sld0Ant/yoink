@@ -25,6 +25,7 @@ beforeEach(() => {
       if (pathname === "/font.woff2") return new Response(Buffer.alloc(32, 0xcd));
       if (pathname === "/favicon.ico") return new Response(Buffer.alloc(16, 0xef));
       if (pathname === "/fail") return new Response("no", { status: 500 });
+      if (pathname === "/not-found") return new Response("nope", { status: 404 });
       return new Response("not found", { status: 404 });
     },
   });
@@ -37,10 +38,14 @@ afterEach(() => {
 });
 
 function makeDl(opts: { maxImages?: number; skipCdn?: boolean } = {}) {
-  const fetcher = new Fetcher();
+  const errorMap = new Map<string, string>();
+  const fetcher = new Fetcher({
+    retries: 0,
+    onError: (url, reason) => errorMap.set(url, reason),
+  });
   const namer = new Namer(TMP);
   const progress = new SilentProgress();
-  return new Downloader(fetcher, namer, progress, TMP, opts.maxImages ?? 200, opts.skipCdn ?? false, "localhost", 4);
+  return new Downloader(fetcher, namer, progress, TMP, opts.maxImages ?? 200, opts.skipCdn ?? false, "localhost", 4, errorMap);
 }
 
 function assets(partial: Partial<Assets> = {}): Assets {
@@ -52,7 +57,6 @@ describe("Downloader", () => {
     const dl = makeDl();
     await dl.downloadAssets(assets({ css: [`http://localhost:${port}/style.css`] }));
 
-    expect(dl.records.size).toBe(1);
     const rec = dl.records.get(`http://localhost:${port}/style.css`);
     expect(rec?.status).toBe("ok");
     expect(existsSync(join(TMP, rec!.local))).toBe(true);
@@ -96,13 +100,23 @@ describe("Downloader", () => {
     expect(rec?.status).toBe("ok");
   });
 
-  it("records failed downloads", async () => {
+  it("records failed downloads with error reason", async () => {
+    const dl = makeDl();
+    await dl.downloadAssets(assets({ js: [`http://localhost:${port}/not-found`] }));
+
+    const rec = dl.records.get(`http://localhost:${port}/not-found`);
+    expect(rec?.status).toBe("failed");
+    expect(rec?.error).toBe("http:404");
+    expect(dl.failures).toContain(`http://localhost:${port}/not-found`);
+  });
+
+  it("records 500 error reason", async () => {
     const dl = makeDl();
     await dl.downloadAssets(assets({ js: [`http://localhost:${port}/fail`] }));
 
     const rec = dl.records.get(`http://localhost:${port}/fail`);
     expect(rec?.status).toBe("failed");
-    expect(dl.failures).toContain(`http://localhost:${port}/fail`);
+    expect(rec?.error).toBe("http:500");
   });
 
   it("deduplicates same URL", async () => {

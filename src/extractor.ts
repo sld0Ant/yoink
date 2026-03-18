@@ -1,8 +1,26 @@
 import type { Assets } from "./types";
 
+export function normalizeUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    u.hash = "";
+    if (u.pathname.length > 1 && u.pathname.endsWith("/")) {
+      u.pathname = u.pathname.slice(0, -1);
+    }
+    const sorted = [...u.searchParams.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}=${v}`)
+      .join("&");
+    u.search = sorted ? `?${sorted}` : "";
+    return u.href;
+  } catch {
+    return raw;
+  }
+}
+
 function abs(url: string, base: string): string {
   try {
-    return new URL(url, base).href;
+    return normalizeUrl(new URL(url, base).href);
   } catch {
     return url;
   }
@@ -105,8 +123,8 @@ export function extractInternalLinks(html: string, baseUrl: string, origin: stri
     if (resolved.origin !== origin) continue;
     if (/\.(pdf|zip|doc|docx|xls|xlsx|png|jpg|gif|svg|mp4)$/i.test(resolved.pathname)) continue;
 
-    const norm = resolved.origin + resolved.pathname;
-    if (seen.has(norm) || norm === homePath) continue;
+    const norm = normalizeUrl(resolved.origin + resolved.pathname);
+    if (seen.has(norm) || norm === normalizeUrl(homePath)) continue;
     seen.add(norm);
     links.push(norm);
   }

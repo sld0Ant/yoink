@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { extractHtmlAssets, extractCssAssets, extractInternalLinks } from "../src/extractor";
+import { extractHtmlAssets, extractCssAssets, extractInternalLinks, normalizeUrl } from "../src/extractor";
 
 describe("extractHtmlAssets", () => {
   const base = "https://example.com/page";
@@ -189,5 +189,35 @@ describe("extractInternalLinks", () => {
     const html = `<a href="/about">A</a><a href="/about">B</a>`;
     const links = extractInternalLinks(html, home, origin, home);
     expect(links).toHaveLength(1);
+  });
+});
+
+describe("normalizeUrl", () => {
+  it("removes trailing slash", () => {
+    expect(normalizeUrl("https://example.com/about/")).toBe("https://example.com/about");
+  });
+
+  it("keeps root slash", () => {
+    expect(normalizeUrl("https://example.com/")).toBe("https://example.com/");
+  });
+
+  it("removes fragment", () => {
+    expect(normalizeUrl("https://example.com/page#section")).toBe("https://example.com/page");
+  });
+
+  it("sorts query params", () => {
+    expect(normalizeUrl("https://example.com/page?z=1&a=2")).toBe("https://example.com/page?a=2&z=1");
+  });
+
+  it("handles URL without query or fragment", () => {
+    expect(normalizeUrl("https://example.com/path")).toBe("https://example.com/path");
+  });
+
+  it("returns input for invalid URLs", () => {
+    expect(normalizeUrl("not-a-url")).toBe("not-a-url");
+  });
+
+  it("normalizes combined trailing slash + fragment + query", () => {
+    expect(normalizeUrl("https://example.com/about/?b=2&a=1#top")).toBe("https://example.com/about?a=1&b=2");
   });
 });

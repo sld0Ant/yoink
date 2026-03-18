@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "bun:test";
-import { rmSync } from "node:fs";
+import { rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Fetcher } from "../src/fetcher";
 
@@ -18,7 +18,7 @@ describe("Fetcher", () => {
       },
     });
 
-    const f = new Fetcher({ Cookie: "session=abc", "X-Custom": "test" });
+    const f = new Fetcher({ headers: { Cookie: "session=abc", "X-Custom": "test" } });
     await f.text(`http://localhost:${server.port}/`);
 
     expect(receivedHeaders["cookie"]).toBe("session=abc");
@@ -59,7 +59,7 @@ describe("Fetcher", () => {
   });
 
   it("text() returns null on network error", async () => {
-    const f = new Fetcher();
+    const f = new Fetcher({ retries: 0 });
     const result = await f.text("http://127.0.0.1:1/nope");
     expect(result).toBeNull();
   });
@@ -73,13 +73,13 @@ describe("Fetcher", () => {
       },
     });
 
-    const { mkdirSync } = require("node:fs");
     mkdirSync(TMP, { recursive: true });
     const dest = join(TMP, "out.bin");
 
     const f = new Fetcher();
-    const bytes = await f.binary(`http://localhost:${server.port}/`, dest);
-    expect(bytes).toBe(1024);
+    const result = await f.binary(`http://localhost:${server.port}/`, dest);
+    expect(result.bytes).toBe(1024);
+    expect(result.error).toBeUndefined();
 
     const written = await Bun.file(dest).arrayBuffer();
     expect(written.byteLength).toBe(1024);
@@ -87,7 +87,7 @@ describe("Fetcher", () => {
     server.stop();
   });
 
-  it("binary() returns -1 on failure", async () => {
+  it("binary() returns error on failure", async () => {
     const server = Bun.serve({
       port: 0,
       fetch() {
@@ -95,9 +95,121 @@ describe("Fetcher", () => {
       },
     });
 
-    const f = new Fetcher();
-    const bytes = await f.binary(`http://localhost:${server.port}/`, "/tmp/nope.bin");
-    expect(bytes).toBe(-1);
+    const f = new Fetcher({ retries: 0 });
+    const result = await f.binary(`http://localhost:${server.port}/`, "/tmp/nope.bin");
+    expect(result.bytes).toBe(-1);
+    expect(result.error).toBe("http:500");
+
+    server.stop();
+  });
+
+  it("retries on 503 then succeeds", async () => {
+    let attempts = 0;
+    const server = Bun.serve({
+      port: 0,
+      fetch() {
+        attempts++;
+        if (attempts <= 2) return new Response("busy", { status: 503 });
+        return new Response("ok");
+      },
+    });
+
+    const f = new Fetcher({ retries: 3, retryDelay: 10 });
+    const result = await f.text(`http://localhost:${server.port}/`);
+    expect(result).toBe("ok");
+    expect(attempts).toBe(3);
+
+    server.stop();
+  });
+
+  it("does not retry on 404", async () => {
+    let attempts = 0;
+    const server = Bun.serve({
+      port: 0,
+      fetch() {
+        attempts++;
+        return new Response("nope", { status: 404 });
+      },
+    });
+
+    const f = new Fetcher({ retries: 3, retryDelay: 10 });
+    const result = await f.text(`http://localhost:${server.port}/`);
+    expect(result).toBeNull();
+    expect(attempts).toBe(1);
+
+    server.stop();
+  });
+
+  it("does not retry on 403", async () => {
+    let attempts = 0;
+    const server = Bun.serve({
+      port: 0,
+      fetch() {
+        attempts++;
+        return new Response("forbidden", { status: 403 });
+      },
+    });
+
+    const f = new Fetcher({ retries: 3, retryDelay: 10 });
+    const result = await f.text(`http://localhost:${server.port}/`);
+    expect(result).toBeNull();
+    expect(attempts).toBe(1);
+
+    server.stop();
+  });
+
+  it("calls onError with classified reason", async () => {
+    const errors: [string, string][] = [];
+    const server = Bun.serve({
+      port: 0,
+      fetch() {
+        return new Response("forbidden", { status: 403 });
+      },
+    });
+
+    const f = new Fetcher({
+      retries: 0,
+      onError: (url, reason) => errors.push([url, reason]),
+    });
+    await f.text(`http://localhost:${server.port}/test`);
+
+    expect(errors.length).toBe(1);
+    expect(errors[0][0]).toContain("/test");
+    expect(errors[0][1]).toBe("http:403");
+
+    server.stop();
+  });
+
+  it("calls onError on network failure", async () => {
+    const errors: [string, string][] = [];
+    const f = new Fetcher({
+      retries: 0,
+      onError: (url, reason) => errors.push([url, reason]),
+    });
+    await f.text("http://127.0.0.1:1/nope");
+
+    expect(errors.length).toBe(1);
+    expect(errors[0][1]).toBe("network");
+  });
+
+  it("retries binary on 503 then succeeds", async () => {
+    let attempts = 0;
+    const server = Bun.serve({
+      port: 0,
+      fetch() {
+        attempts++;
+        if (attempts <= 1) return new Response("busy", { status: 503 });
+        return new Response(Buffer.alloc(16));
+      },
+    });
+
+    mkdirSync(TMP, { recursive: true });
+    const dest = join(TMP, "retry.bin");
+
+    const f = new Fetcher({ retries: 2, retryDelay: 10 });
+    const result = await f.binary(`http://localhost:${server.port}/`, dest);
+    expect(result.bytes).toBe(16);
+    expect(attempts).toBe(2);
 
     server.stop();
   });

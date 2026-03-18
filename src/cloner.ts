@@ -39,8 +39,15 @@ export class Cloner {
     const extraHeaders: Record<string, string> = { ...opts.headers };
     if (opts.cookie) extraHeaders["Cookie"] = opts.cookie;
 
-    this.fetcher = new Fetcher(extraHeaders);
     this.namer = new Namer(this.outDir);
+
+    const errorMap = new Map<string, string>();
+    this.fetcher = new Fetcher({
+      headers: extraHeaders,
+      onError: (url, reason) => errorMap.set(url, reason),
+      retries: opts.retries,
+      retryDelay: opts.retryDelay,
+    });
     this.dl = new Downloader(
       this.fetcher,
       this.namer,
@@ -50,6 +57,7 @@ export class Cloner {
       opts.noCdn ?? false,
       this.target.hostname,
       opts.concurrency ?? 8,
+      errorMap,
     );
   }
 

@@ -15,6 +15,10 @@ export const CDN_HOSTNAMES = new Set([
   "cdn.cloudflare.com",
 ]);
 
+export const DEFAULT_RETRIES = parseInt(process.env.YOINK_RETRIES ?? "2", 10) || 2;
+export const RETRY_DELAY = parseInt(process.env.YOINK_RETRY_DELAY ?? "1000", 10) || 1000;
+export const TRANSIENT_CODES = new Set([500, 502, 503, 504, 429]);
+
 export const ANSI = {
   gray: "\x1b[90m",
   green: "\x1b[32m",

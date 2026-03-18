@@ -21,6 +21,7 @@ export class Downloader {
     private skipCdn: boolean,
     private targetHost: string,
     private concurrency: number,
+    private errors: Map<string, string> = new Map(),
   ) {}
 
   get records() {
@@ -87,7 +88,7 @@ export class Downloader {
 
     const text = await this.fetcher.text(url);
     if (!text) {
-      this.record(url, rel, "failed");
+      this.record(url, rel, "failed", this.errors.get(url));
       this.progress.tickFail();
       return;
     }
@@ -125,12 +126,12 @@ export class Downloader {
     this.mapAsset(url, rel);
     this.downloaded.set(url, { local: rel, status: "pending" });
 
-    const bytes = await this.fetcher.binary(url, join(this.outDir, rel));
-    if (bytes >= 0) {
+    const result = await this.fetcher.binary(url, join(this.outDir, rel));
+    if (result.bytes >= 0) {
       this.record(url, rel, "ok");
-      this.progress.tick(type, basename(rel), bytes);
+      this.progress.tick(type, basename(rel), result.bytes);
     } else {
-      this.record(url, rel, "failed");
+      this.record(url, rel, "failed", result.error);
       this.progress.tickFail();
     }
   }
@@ -151,8 +152,8 @@ export class Downloader {
     this.localToUrl.set(rel, url);
   }
 
-  private record(url: string, local: string, status: DownloadRecord["status"]) {
-    this.downloaded.set(url, { local, status });
+  private record(url: string, local: string, status: DownloadRecord["status"], error?: string) {
+    this.downloaded.set(url, { local, status, ...(error && { error }) });
     if (status === "failed") this.failed.push(url);
   }
 

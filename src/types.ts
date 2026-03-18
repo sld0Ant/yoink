@@ -1,6 +1,7 @@
 export interface DownloadRecord {
   local: string;
   status: "ok" | "failed" | "pending";
+  error?: string;
 }
 
 export interface Assets {
@@ -18,6 +19,8 @@ export interface CloneOpts {
   concurrency?: number;
   cookie?: string;
   headers?: Record<string, string>;
+  retries?: number;
+  retryDelay?: number;
 }
 
 export type AssetType = "css" | "js" | "img" | "font" | "icon" | "page";
