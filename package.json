@@ -4,7 +4,7 @@
   "description": "Clone any website with all assets for local offline use",
   "type": "module",
   "bin": {
-    "yoink": "./clone.ts"
+    "yoink": "./index.ts"
   },
   "files": [
     "clone.ts",
