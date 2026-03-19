@@ -1,12 +1,16 @@
 {
   "name": "yoink-site",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "bin": {
-    "yoink": "./index.ts"
+    "yoink": "./index.ts",
+    "yoink-mcp": "./mcp.ts"
   },
   "description": "Clone any website with all assets for local offline use",
   "files": [
-    "clone.ts",
+    "index.ts",
+    "mcp.ts",
+    "src/",
+    "templates/",
     "README.md",
     "SKILL.md",
     "references/"
@@ -18,8 +22,13 @@
     "mirror",
     "bun",
     "agent-skills",
-    "claude-skills"
+    "claude-skills",
+    "mcp"
   ],
   "license": "MIT",
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "zod": "^4.3.6"
+  }
 }

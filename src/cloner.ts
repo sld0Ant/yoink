@@ -8,7 +8,7 @@ import { Fetcher } from "./fetcher";
 import { inlineScripts, inlineStyles } from "./inliner";
 import { Namer } from "./namer";
 import { writeServer, writeManifest } from "./output";
-import { Progress } from "./progress";
+import { Progress, SilentProgress } from "./progress";
 import { rewriteHtml, rewriteCss } from "./rewriter";
 import type { CloneOpts, DownloadRecord } from "./types";
 
@@ -29,10 +29,11 @@ export class Cloner {
   private resume: boolean;
   private doInlineScripts: boolean;
   private doInlineStyles: boolean;
+  private silent: boolean;
 
   private fetcher: Fetcher;
   private namer: Namer;
-  private progress = new Progress();
+  private progress: Progress | SilentProgress;
   private dl: Downloader;
 
   constructor(targetUrl: string, outDir: string, opts: CloneOpts = {}) {
@@ -43,6 +44,8 @@ export class Cloner {
     this.resume = opts.resume ?? false;
     this.doInlineScripts = opts.inlineScripts ?? false;
     this.doInlineStyles = opts.inlineStyles ?? false;
+    this.silent = opts.silent ?? false;
+    this.progress = this.silent ? new SilentProgress() : new Progress();
 
     const extraHeaders: Record<string, string> = { ...opts.headers };
     if (opts.cookie) extraHeaders["Cookie"] = opts.cookie;
@@ -71,7 +74,7 @@ export class Cloner {
 
   async run(): Promise<CloneResult> {
     const t0 = performance.now();
-    console.log(`\n  ${bold}${this.target.hostname}${reset} → ${cyan}${basename(this.outDir)}${reset}\n`);
+    if (!this.silent) console.log(`\n  ${bold}${this.target.hostname}${reset} → ${cyan}${basename(this.outDir)}${reset}\n`);
 
     this.progress.start();
     this.createDirs();
@@ -101,7 +104,7 @@ export class Cloner {
     const ok = [...this.dl.records.values()].filter((d) => d.status === "ok").length;
     const failed = this.dl.failures.length;
 
-    this.printSummary(elapsed, ok, failed);
+    if (!this.silent) this.printSummary(elapsed, ok, failed);
 
     return { ok, failed, elapsed, records: this.dl.records };
   }
@@ -177,6 +180,17 @@ export class Cloner {
       const origUrl = this.dl.findUrlByLocal(`assets/css/${file}`);
       const rewritten = rewriteCss(raw, file, origUrl, assetMap);
       await Bun.write(join(cssDir, file), rewritten);
+    }
+
+    const jsDir = join(this.outDir, "assets", "js");
+    for (const file of listDir(jsDir).filter((f) => f.endsWith(".js"))) {
+      const raw = await Bun.file(join(jsDir, file)).text();
+      let rewritten = raw;
+      for (const [origUrl, localRel] of [...assetMap.entries()].sort((a, b) => b[0].length - a[0].length)) {
+        if (!origUrl.startsWith("http")) continue;
+        rewritten = rewritten.split(origUrl).join(localRel);
+      }
+      if (rewritten !== raw) await Bun.write(join(jsDir, file), rewritten);
     }
   }
 

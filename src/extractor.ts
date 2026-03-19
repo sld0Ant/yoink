@@ -9,7 +9,7 @@ export function normalizeUrl(raw: string): string {
     }
     const sorted = [...u.searchParams.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${k}=${v}`)
+      .map(([k, v]) => (v ? `${k}=${v}` : k))
       .join("&");
     u.search = sorted ? `?${sorted}` : "";
     return u.href;
@@ -80,6 +80,9 @@ export function extractHtmlAssets(html: string, baseUrl: string): Assets {
     a.js.push(abs(m[1], baseUrl));
 
   for (const m of html.matchAll(/<script[^>]*src=["']([^"']+)["'][^>]*>/gi))
+    a.js.push(abs(m[1], baseUrl));
+
+  for (const m of html.matchAll(/\.src\s*=\s*["']([^"']+\.(?:js|css)(?:\?[^"']*)?)["']/g))
     a.js.push(abs(m[1], baseUrl));
 
   for (const m of html.matchAll(/<img[^>]*src=["']([^"']+)["'][^>]*>/gi))

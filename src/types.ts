@@ -24,6 +24,7 @@ export interface CloneOpts {
   resume?: boolean;
   inlineScripts?: boolean;
   inlineStyles?: boolean;
+  silent?: boolean;
 }
 
 export type AssetType = "css" | "js" | "img" | "font" | "icon" | "page";

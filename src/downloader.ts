@@ -139,9 +139,31 @@ export class Downloader {
     if (result.bytes >= 0) {
       this.record(url, rel, "ok");
       this.progress.tick(type, basename(rel), result.bytes);
+
+      if (type === "js") await this.extractDynamicScripts(url, rel);
     } else {
       this.record(url, rel, "failed", result.error);
       this.progress.tickFail();
+    }
+  }
+
+  private async extractDynamicScripts(baseUrl: string, rel: string) {
+    try {
+      const js = await Bun.file(join(this.outDir, rel)).text();
+      const pattern = /\.src\s*=\s*["']([^"']+\.(?:js|css)(?:\?[^"']*)?)["']/g;
+      const tasks: { url: string; rel: string }[] = [];
+
+      for (const m of js.matchAll(pattern)) {
+        const resolved = new URL(m[1], baseUrl).href;
+        if (this.shouldSkip(resolved)) continue;
+        tasks.push({ url: resolved, rel: this.namer.alloc(resolved, "assets/js") });
+      }
+
+      if (tasks.length === 0) return;
+      this.progress.addTotal(tasks.length);
+      await this.parallel(tasks.map((t) => () => this.downloadBin(t.url, t.rel, "js")));
+    } catch {
+      // non-text binary or read error
     }
   }
 

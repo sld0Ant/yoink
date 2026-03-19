@@ -85,6 +85,48 @@ TTY output with auto-updating status:
   → ZonaPro-Bold.woff2
 ```
 
+## MCP Server
+
+yoink ships as an MCP (Model Context Protocol) server for use with Claude, Cursor, and other AI tools.
+
+### Claude Code
+
+```bash
+claude mcp add yoink bun /path/to/yoink/mcp.ts
+```
+
+### Claude Desktop / Cursor
+
+Add to config:
+
+```json
+{
+  "mcpServers": {
+    "yoink": {
+      "command": "bun",
+      "args": ["/path/to/yoink/mcp.ts"]
+    }
+  }
+}
+```
+
+### Tool: `clone`
+
+Clones a website with all assets. Parameters:
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `url` | string | URL to clone (required) |
+| `outputDir` | string | Output directory (default: "cloned-site") |
+| `pages` | number | Max pages (default: 20) |
+| `images` | number | Max images (default: 200) |
+| `noCdn` | boolean | Skip CDN assets |
+| `concurrency` | number | Parallel downloads (default: 8) |
+| `cookie` | string | Cookie header |
+| `resume` | boolean | Skip already downloaded |
+| `inlineScripts` | boolean | Embed JS in HTML |
+| `inlineStyles` | boolean | Embed CSS in HTML |
+
 ## Limitations
 
 - Static HTML only — no JS rendering (won't work for SPAs)

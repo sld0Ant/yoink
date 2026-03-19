@@ -50,8 +50,6 @@ export function rewriteHtml(
   const zones = splitSafeZones(html);
 
   for (const zone of zones) {
-    if (zone.isScript) continue;
-
     let result = zone.text;
     for (const [origUrl, localRel] of sorted) {
       const to = prefix + localRel;
@@ -59,8 +57,12 @@ export function rewriteHtml(
 
       try {
         const u = new URL(origUrl);
-        if (u.search) result = replaceInContext(result, u.pathname + u.search, to);
-        result = replaceInContext(result, u.pathname, to);
+        if (zone.isScript) {
+          if (u.search) result = replaceInContext(result, u.pathname + u.search, to);
+        } else {
+          if (u.search) result = replaceInContext(result, u.pathname + u.search, to);
+          result = replaceInContext(result, u.pathname, to);
+        }
       } catch {
         // skip
       }
