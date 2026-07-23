@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { extractHtmlAssets, extractCssAssets, extractInternalLinks, normalizeUrl } from "../src/extractor";
+import { extractHtmlAssets, extractCssAssets, extractInternalLinks, extractJsImports, normalizeUrl } from "../src/extractor";
 
 describe("extractHtmlAssets", () => {
   const base = "https://example.com/page";
@@ -196,6 +196,25 @@ describe("extractCssAssets", () => {
     const css = `.a { background: url(/x.png); } .b { background: url(/x.png); }`;
     const result = extractCssAssets(css, base);
     expect(result.images).toHaveLength(1);
+  });
+});
+
+describe("extractJsImports", () => {
+  it("extracts relative static, side-effect, export, and dynamic imports", () => {
+    const js = `
+      import CodeSelect from "../js/codeSelect.js";
+      import "./setup.js";
+      export { Demo } from "/shared/demo.js";
+      const lazy = import("./lazy.js");
+      import React from "react";
+    `;
+
+    expect(extractJsImports(js, "https://example.com/demos/app/main.js")).toEqual([
+      "https://example.com/demos/js/codeSelect.js",
+      "https://example.com/demos/app/setup.js",
+      "https://example.com/shared/demo.js",
+      "https://example.com/demos/app/lazy.js",
+    ]);
   });
 });
 

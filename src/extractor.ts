@@ -130,6 +130,25 @@ export function extractCssAssets(css: string, cssUrl: string) {
   };
 }
 
+export function extractJsImports(js: string, jsUrl: string): string[] {
+  const imports: string[] = [];
+  const patterns = [
+    /\b(?:import|export)\s+(?:[^"']*?\s+from\s*)?["']([^"']+)["']/g,
+    /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of js.matchAll(pattern)) {
+      const specifier = match[1];
+      if (specifier.startsWith(".") || specifier.startsWith("/")) {
+        imports.push(abs(specifier, jsUrl));
+      }
+    }
+  }
+
+  return [...new Set(imports)];
+}
+
 export function extractInternalLinks(html: string, baseUrl: string, origin: string, homePath: string): string[] {
   const seen = new Set<string>();
   const links: string[] = [];

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { rewriteHtml, rewriteCss } from "../src/rewriter";
+import { rewriteHtml, rewriteCss, rewriteJs } from "../src/rewriter";
 
 describe("rewriteHtml", () => {
   const origin = "https://example.com";
@@ -107,5 +107,16 @@ describe("rewriteCss", () => {
     const css = `.icon { background: url(data:image/svg+xml;base64,abc); }`;
     const result = rewriteCss(css, "style.css", undefined, map);
     expect(result).toBe(css);
+  });
+});
+
+describe("rewriteJs", () => {
+  it("rewrites module URLs relative to the downloaded JS file", () => {
+    const js = `import Demo from "https://example.com/demos/js/demo.js";`;
+    const map = new Map([
+      ["https://example.com/demos/js/demo.js", "assets/js/demo.js"],
+    ]);
+
+    expect(rewriteJs(js, "main.js", "https://example.com/demos/main.js", map)).toBe(`import Demo from "./demo.js";`);
   });
 });

@@ -3,14 +3,15 @@ import { join, resolve, basename } from "node:path";
 import { existsSync } from "node:fs";
 import { ANSI } from "./constants";
 import { Downloader } from "./downloader";
-import { extractHtmlAssets, extractInternalLinks } from "./extractor";
+import { extractHtmlAssets, extractInternalLinks, extractJsImports } from "./extractor";
 import { Fetcher } from "./fetcher";
 import { inlineScripts, inlineStyles } from "./inliner";
 import { Namer } from "./namer";
 import { writeServer, writeManifest } from "./output";
 import { Progress, SilentProgress } from "./progress";
-import { rewriteHtml, rewriteCss } from "./rewriter";
-import type { CloneOpts, DownloadRecord } from "./types";
+import { rewriteHtml, rewriteHtmlRelativeAssets, rewriteCss, rewriteJs } from "./rewriter";
+import { buildSummary, writeSummary } from "./summary";
+import type { CloneOpts, DownloadRecord, SiteSummary } from "./types";
 
 const { bold, cyan, green, red, reset } = ANSI;
 
@@ -19,6 +20,7 @@ export interface CloneResult {
   failed: number;
   elapsed: number;
   records: Map<string, DownloadRecord>;
+  summary: SiteSummary;
 }
 
 export class Cloner {
@@ -91,6 +93,7 @@ export class Cloner {
     await this.dl.downloadAssets(extractHtmlAssets(homeHtml, this.target.href));
 
     await this.downloadPages(homeHtml);
+    await this.downloadJsImports();
 
     this.progress.setPhase("Rewriting paths");
     await this.rewriteAll(homeHtml);
@@ -104,9 +107,12 @@ export class Cloner {
     const ok = [...this.dl.records.values()].filter((d) => d.status === "ok").length;
     const failed = this.dl.failures.length;
 
+    const summary = buildSummary(this.target.href, this.outDir, this.maxPages, elapsed, this.dl.records);
+    await writeSummary(this.outDir, summary);
+
     if (!this.silent) this.printSummary(elapsed, ok, failed);
 
-    return { ok, failed, elapsed, records: this.dl.records };
+    return { ok, failed, elapsed, records: this.dl.records, summary };
   }
 
   private loadResume() {
@@ -138,14 +144,16 @@ export class Cloner {
     if (this.maxPages <= 0) return;
 
     const homePath = this.target.origin + this.target.pathname;
-    const allLinks = extractInternalLinks(homeHtml, this.target.href, this.origin, homePath);
-    const pages = allLinks.slice(0, this.maxPages);
-    if (pages.length === 0) return;
+    const queue = extractInternalLinks(homeHtml, this.target.href, this.origin, homePath);
+    const seen = new Set([this.target.href, this.target.origin + this.target.pathname, ...queue]);
+    if (queue.length === 0) return;
 
     this.progress.setPhase("Downloading pages");
-    this.progress.addTotal(pages.length);
+    this.progress.addTotal(queue.length);
 
-    for (const pageUrl of pages) {
+    let downloaded = 0;
+    for (let i = 0; i < queue.length && downloaded < this.maxPages; i++) {
+      const pageUrl = queue[i];
       const html = await this.fetcher.text(pageUrl);
       if (!html) {
         this.progress.tickFail();
@@ -154,7 +162,20 @@ export class Cloner {
 
       const slug = this.namer.pageSlug(pageUrl);
       await this.dl.downloadPage(pageUrl, slug, html);
+      downloaded++;
       await this.dl.downloadAssets(extractHtmlAssets(html, pageUrl));
+
+      const links = extractInternalLinks(html, pageUrl, this.origin, homePath);
+      const remaining = this.maxPages - downloaded - queue.length + i + 1;
+      let added = 0;
+      for (const link of links) {
+        if (seen.has(link)) continue;
+        if (added >= remaining) break;
+        seen.add(link);
+        queue.push(link);
+        added++;
+      }
+      if (added > 0) this.progress.addTotal(added);
     }
   }
 
@@ -162,6 +183,7 @@ export class Cloner {
     const { assetMap } = this.dl;
 
     let rewrittenHome = rewriteHtml(homeHtml, this.origin, assetMap, 0);
+    rewrittenHome = rewriteHtmlRelativeAssets(rewrittenHome, this.target.href, assetMap, 0);
     rewrittenHome = await this.applyInline(rewrittenHome, 0);
     await Bun.write(join(this.outDir, "index.html"), rewrittenHome);
 
@@ -170,6 +192,8 @@ export class Cloner {
       if (!file.endsWith(".html")) continue;
       const raw = await Bun.file(join(pagesDir, file)).text();
       let rewritten = rewriteHtml(raw, this.origin, assetMap, 1);
+      const pageUrl = this.dl.findUrlByLocal(`pages/${file}`);
+      if (pageUrl) rewritten = rewriteHtmlRelativeAssets(rewritten, pageUrl, assetMap, 1);
       rewritten = await this.applyInline(rewritten, 1);
       await Bun.write(join(pagesDir, file), rewritten);
     }
@@ -185,12 +209,31 @@ export class Cloner {
     const jsDir = join(this.outDir, "assets", "js");
     for (const file of listDir(jsDir).filter((f) => f.endsWith(".js"))) {
       const raw = await Bun.file(join(jsDir, file)).text();
-      let rewritten = raw;
-      for (const [origUrl, localRel] of [...assetMap.entries()].sort((a, b) => b[0].length - a[0].length)) {
-        if (!origUrl.startsWith("http")) continue;
-        rewritten = rewritten.split(origUrl).join(localRel);
-      }
+      const origUrl = this.dl.findUrlByLocal(`assets/js/${file}`);
+      const rewritten = rewriteJs(raw, file, origUrl, assetMap);
       if (rewritten !== raw) await Bun.write(join(jsDir, file), rewritten);
+    }
+  }
+
+  private async downloadJsImports() {
+    const seen = new Set<string>();
+    const queue = [...this.dl.records.entries()]
+      .filter(([, record]) => record.status === "ok" && record.local.startsWith("assets/js/") && record.local.endsWith(".js"))
+      .map(([url]) => url);
+
+    while (queue.length > 0) {
+      const jsUrl = queue.shift()!;
+      if (seen.has(jsUrl)) continue;
+      seen.add(jsUrl);
+
+      const record = this.dl.records.get(jsUrl);
+      if (!record || record.status !== "ok") continue;
+      const js = await Bun.file(join(this.outDir, record.local)).text();
+      const imports = extractJsImports(js, jsUrl).filter((url) => !seen.has(url));
+      if (imports.length === 0) continue;
+
+      await this.dl.downloadAssets({ css: [], js: imports, images: [], fonts: [], icons: [] });
+      queue.push(...imports);
     }
   }
 

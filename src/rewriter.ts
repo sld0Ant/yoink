@@ -73,6 +73,27 @@ export function rewriteHtml(
   return zones.map((z) => z.text).join("");
 }
 
+export function rewriteHtmlRelativeAssets(
+  html: string,
+  pageUrl: string,
+  assetMap: Map<string, string>,
+  depth: number
+): string {
+  const prefix = "../".repeat(depth);
+  return html.replace(
+    /\b(src|href|poster)=(['"])([^'"#]+)\2/gi,
+    (match, attr: string, quote: string, value: string) => {
+      if (/^(?:data:|mailto:|tel:|javascript:|#)/i.test(value)) return match;
+      try {
+        const local = assetMap.get(new URL(value, pageUrl).href);
+        return local ? `${attr}=${quote}${prefix}${local}${quote}` : match;
+      } catch {
+        return match;
+      }
+    },
+  );
+}
+
 export function rewriteCss(
   css: string,
   cssFile: string,
@@ -110,6 +131,64 @@ export function rewriteCss(
     const cleaned = inner.replace(/^(['"]?)([^'"?]+)\?[^'"]*(['"]?)$/, "$1$2$3");
     return `url(${cleaned})`;
   });
+
+  if (cssOrigUrl) {
+    result = result.replace(/url\(\s*(['"]?)([^'"()]+)\1\s*\)/g, (match, quote: string, value: string) => {
+      if (/^(?:data:|#)/i.test(value)) return match;
+      try {
+        const localRel = assetMap.get(new URL(value, cssOrigUrl).href);
+        if (!localRel) return match;
+        return `url(${quote}${relative(cssRelDir, localRel)}${quote})`;
+      } catch {
+        return match;
+      }
+    });
+  }
+
+  return result;
+}
+
+export function rewriteJs(
+  js: string,
+  jsFile: string,
+  jsOrigUrl: string | undefined,
+  assetMap: Map<string, string>
+): string {
+  let result = js;
+  const jsRelDir = dirname(`assets/js/${jsFile}`);
+  const sorted = [...assetMap.entries()].sort((a, b) => b[0].length - a[0].length);
+
+  for (const [origUrl, localRel] of sorted) {
+    if (!origUrl.startsWith("http")) continue;
+    const relPath = relative(jsRelDir, localRel);
+    const specifier = relPath.startsWith(".") ? relPath : `./${relPath}`;
+    result = replaceAll(result, origUrl, specifier);
+
+    try {
+      const url = new URL(origUrl);
+      result = replaceInContext(result, url.pathname, specifier);
+    } catch {
+      // skip
+    }
+  }
+
+  if (jsOrigUrl) {
+    result = result.replace(
+      /(\b(?:import|export)\s+(?:[^"']*?\s+from\s*)?["']|\bimport\s*\(\s*["'])([^"']+)(["'])/g,
+      (match, before: string, specifier: string, quote: string) => {
+        if (!specifier.startsWith(".") && !specifier.startsWith("/")) return match;
+        try {
+          const localRel = assetMap.get(new URL(specifier, jsOrigUrl).href);
+          if (!localRel) return match;
+          const relPath = relative(jsRelDir, localRel);
+          const localSpecifier = relPath.startsWith(".") ? relPath : `./${relPath}`;
+          return `${before}${localSpecifier}${quote}`;
+        } catch {
+          return match;
+        }
+      },
+    );
+  }
 
   return result;
 }
