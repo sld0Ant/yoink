@@ -1,5 +1,5 @@
 import { mkdirSync, readdirSync } from "node:fs";
-import { join, resolve, basename } from "node:path";
+import { join, resolve, basename, dirname } from "node:path";
 import { existsSync } from "node:fs";
 import { ANSI } from "./constants";
 import { Downloader } from "./downloader";
@@ -97,6 +97,7 @@ export class Cloner {
 
     this.progress.setPhase("Rewriting paths");
     await this.rewriteAll(homeHtml);
+    await this.bundleModuleScripts();
 
     await writeServer(this.outDir);
     await writeManifest(this.outDir, this.dl.records);
@@ -235,6 +236,34 @@ export class Cloner {
       await this.dl.downloadAssets({ css: [], js: imports, images: [], fonts: [], icons: [] });
       queue.push(...imports);
     }
+  }
+
+  private async bundleModuleScripts() {
+    const indexPath = join(this.outDir, "index.html");
+    let html = await Bun.file(indexPath).text();
+    const moduleScripts = [...html.matchAll(/<script\b([^>]*\btype=["']module["'][^>]*)\bsrc=["']([^"']+)["']([^>]*)><\/script>/gi)];
+
+    for (const match of moduleScripts) {
+      const src = match[2];
+      if (/^(?:https?:)?\/\//i.test(src)) continue;
+      const entryPath = resolve(this.outDir, src);
+      if (!entryPath.startsWith(this.outDir) || !existsSync(entryPath)) continue;
+
+      const bundleName = `${basename(src, ".js")}.bundle.js`;
+      const bundlePath = join(this.outDir, "assets", "js", bundleName);
+      const result = await Bun.build({
+        entrypoints: [entryPath],
+        outdir: dirname(bundlePath),
+        naming: bundleName,
+        format: "iife",
+        target: "browser",
+      });
+      if (!result.success) continue;
+
+      html = html.replace(match[0], `<script defer src="assets/js/${bundleName}"></script>`);
+    }
+
+    await Bun.write(indexPath, html);
   }
 
   private async applyInline(html: string, _depth: number): Promise<string> {
