@@ -1,3 +1,4 @@
+import { renameSync, writeFileSync } from "node:fs";
 import { join, basename } from "node:path";
 import { CDN_HOSTNAMES } from "./constants";
 import { extractCssAssets } from "./extractor";
@@ -11,6 +12,7 @@ export class Downloader {
   private localToUrl = new Map<string, string>();
   assetMap = new Map<string, string>();
   private imgCount = 0;
+  private recordsSinceFlush = 0;
 
   constructor(
     private fetcher: Fetcher,
@@ -186,6 +188,21 @@ export class Downloader {
   private record(url: string, local: string, status: DownloadRecord["status"], error?: string) {
     this.downloaded.set(url, { local, status, ...(error && { error }) });
     if (status === "failed") this.failed.push(url);
+    this.flushManifest(status === "failed");
+  }
+
+  private flushManifest(force = false) {
+    this.recordsSinceFlush++;
+    if (!force && this.recordsSinceFlush < 10) return;
+    this.recordsSinceFlush = 0;
+
+    const entries: Record<string, DownloadRecord> = {};
+    for (const [url, info] of this.downloaded) entries[url] = info;
+
+    const path = join(this.outDir, "manifest.json");
+    const tempPath = `${path}.tmp`;
+    writeFileSync(tempPath, JSON.stringify(entries, null, 2));
+    renameSync(tempPath, path);
   }
 
   private async parallel(tasks: (() => Promise<unknown>)[]) {

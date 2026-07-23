@@ -27,6 +27,27 @@ export interface CloneOpts {
   silent?: boolean;
 }
 
+export interface SiteSummary {
+  url: string;
+  hostname: string;
+  clonedAt: string;
+  elapsed: number;
+  maxPages: number;
+  pagesDownloaded: number;
+  assets: {
+    pages: number;
+    css: number;
+    js: number;
+    images: number;
+    fonts: number;
+    total: number;
+  };
+  totalBytes: number;
+  domains: string[];
+  failed: { url: string; reason: string }[];
+  outputDir: string;
+}
+
 export type AssetType = "css" | "js" | "img" | "font" | "icon" | "page";
 
 export interface ProgressReporter {
